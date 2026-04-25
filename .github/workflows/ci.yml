@@ -1,0 +1,59 @@
+name: CI Pipeline
+
+# Pipeline-ul se declanșează automat la fiecare Pull Request către main
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # Job-ul pentru verificarea Backend-ului (Node.js)
+  backend-checks:
+    name: Backend Lint, Test & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run Linter
+        run: npm run lint --if-present
+
+      - name: Run Tests
+        run: npm test --if-present
+
+  # Job-ul pentru verificarea Frontend-ului (Next.js)
+  frontend-checks:
+    name: Frontend Lint, Test & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run Linter
+        run: npm run lint --if-present
+
+      - name: Build Next.js App
+        run: npm run build
