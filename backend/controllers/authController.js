@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const jwt    = require('jsonwebtoken');
 const pool = require('../db/pool');
 const { isUniversityEmail, validatePassword } = require('../utils/validators');
 const { sendVerificationEmail } = require('../services/emailService');
@@ -106,4 +107,76 @@ async function verifyEmail(req, res) {
     });
 }
 
-module.exports = { register, verifyEmail };
+/**
+ * POST /api/auth/login
+ *
+ * Body: { email, password }
+ *
+ * Acceptance criteria enforced here:
+ *  1. Email and password must be provided.
+ *  2. The user account must exist and the password must match.
+ *  3. Returns a signed JWT on success; "Invalid credentials" on failure.
+ */
+async function login(req, res) {
+    const { email, password } = req.body;
+
+    // ── 1. Input presence ──────────────────────────────────────────────────
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required.' });
+    }
+
+    // ── 2. Look up user (always run bcrypt compare to prevent timing attacks) ─
+    const result = await pool.query(
+        'SELECT id, email, password, first_name, last_name, is_verified FROM users WHERE email = $1',
+        [email.toLowerCase()]
+    );
+
+    const user = result.rows[0] || null;
+
+    // Use a throwaway hash when user is not found so bcrypt still runs
+    // (prevents timing-based user-enumeration).
+    const hashToCompare = user
+        ? user.password
+        : '$2a$12$invalidhashplaceholderXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+
+    const passwordMatch = await bcrypt.compare(password, hashToCompare);
+
+    if (!user || !passwordMatch) {
+        return res.status(401).json({ error: 'Invalid credentials.' });
+    }
+
+    // ── 3. Account verification gate ───────────────────────────────────────
+    if (!user.is_verified) {
+        return res.status(403).json({
+            error: 'Please verify your email address before logging in.',
+        });
+    }
+
+    // ── 4. Issue JWT ────────────────────────────────────────────────────────
+    const secret     = process.env.JWT_SECRET;
+    const expiresIn  = process.env.JWT_EXPIRES_IN || '7d';
+
+    const token = jwt.sign(
+        {
+            sub:       user.id,
+            email:     user.email,
+            firstName: user.first_name,
+            lastName:  user.last_name,
+        },
+        secret,
+        { expiresIn }
+    );
+
+    return res.status(200).json({
+        message: 'Login successful.',
+        token,
+        user: {
+            id:        user.id,
+            email:     user.email,
+            firstName: user.first_name,
+            lastName:  user.last_name,
+        },
+    });
+}
+
+module.exports = { register, verifyEmail, login };

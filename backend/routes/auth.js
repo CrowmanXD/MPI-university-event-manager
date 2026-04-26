@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { register, verifyEmail } = require('../controllers/authController');
+const { register, verifyEmail, login } = require('../controllers/authController');
 
 const router = Router();
 
@@ -16,6 +16,13 @@ router.post('/register', asyncWrap(register));
  * @access Public
  */
 router.get('/verify-email', asyncWrap(verifyEmail));
+
+/**
+ * @route  POST /api/auth/login
+ * @desc   Authenticate a registered student and return a JWT
+ * @access Public
+ */
+router.post('/login', asyncWrap(login));
 
 /**
  * Wraps an async route handler so errors are forwarded to the global
