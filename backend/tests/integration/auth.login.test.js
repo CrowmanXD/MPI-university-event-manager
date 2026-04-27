@@ -181,4 +181,15 @@ describe('POST /api/auth/login', () => {
         expect(r2.status).toBe(401);
         expect(r1.body.error).toBe(r2.body.error); // same message
     });
+    test('400 – rejects invalid email format', async () => {
+    const res = await request(app)
+        .post('/api/auth/login')
+        .send({
+            email: 'invalid-email',
+            password: VALID_PASSWORD
+        });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/email/i);
+});
 });
