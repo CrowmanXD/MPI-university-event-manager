@@ -41,7 +41,10 @@ async function createEvent(req, res) {
 
     return res.status(201).json({
         message: 'Event created successfully.',
-        event,
+        event: {
+            ...event,
+            available_spots: event.max_capacity
+        },
     });
 }
 
@@ -62,6 +65,7 @@ async function listEvents(req, res) {
              e.event_time,
              e.location,
              e.max_capacity,
+             (e.max_capacity - (SELECT COUNT(*) FROM event_registrations WHERE event_id = e.id))::int AS available_spots,
              e.organizer_id,
              e.created_at,
              e.updated_at,
@@ -209,4 +213,71 @@ async function updateEvent(req, res) {
     });
 }
 
-module.exports = { createEvent, listEvents, updateEvent };
+/**
+ * POST /api/events/:id/join
+ *
+ * Protected — requires a valid JWT.
+ * 
+ * Acceptance criteria enforced here:
+ *  1. System decreases the available spots by 1 (by registering the user).
+ *  2. If the event has reached max capacity, returns "Sold Out" error.
+ */
+async function joinEvent(req, res) {
+    const eventId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(eventId) || eventId <= 0) {
+        return res.status(400).json({ error: 'Invalid event ID.' });
+    }
+
+    const userId = req.user.sub;
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // Check current capacity and registrations
+        const eventRes = await client.query(
+            `SELECT max_capacity, 
+             (SELECT COUNT(*) FROM event_registrations WHERE event_id = $1) AS current_registrations
+             FROM events WHERE id = $1 FOR UPDATE`,
+            [eventId]
+        );
+
+        if (eventRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Event not found.' });
+        }
+
+        const max_capacity = eventRes.rows[0].max_capacity;
+        const current_registrations = parseInt(eventRes.rows[0].current_registrations, 10);
+
+        if (current_registrations >= max_capacity) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'Sold Out: Event has reached maximum capacity.' });
+        }
+
+        // Insert registration
+        const insertRes = await client.query(
+            `INSERT INTO event_registrations (event_id, user_id) 
+             VALUES ($1, $2) ON CONFLICT (event_id, user_id) DO NOTHING RETURNING id`,
+            [eventId, userId]
+        );
+
+        if (insertRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'You have already joined this event.' });
+        }
+
+        await client.query('COMMIT');
+        return res.status(200).json({ 
+            message: 'Successfully joined the event.',
+            available_spots: max_capacity - current_registrations - 1
+        });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+}
+
+module.exports = { createEvent, listEvents, updateEvent, joinEvent };
