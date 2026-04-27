@@ -2,67 +2,16 @@
 
 import { useMemo, useState } from "react";
 
-<<<<<<< feat/event-catalog
-=======
 type EventCategory = "Workshop" | "Party" | "Seminar";
 type EventTab = "upcoming" | "history";
 type CategoryFilter = "Toate" | EventCategory;
 
->>>>>>> main
 type EventItem = {
   id: number;
   title: string;
   date: string;
   location: string;
   image: string;
-<<<<<<< feat/event-catalog
-};
-
-type ActiveTab = "upcoming" | "history";
-
-const MOCK_EVENTS: EventItem[] = [
-  {
-    id: 1,
-    title: "Hackathon AI Campus",
-    date: "2026-10-15T10:00:00.000Z",
-    location: "Aula Magna, Cluj-Napoca",
-    image: "https://images.unsplash.com/photo-1515169067868-5387ec356754?w=1200&q=80",
-  },
-  {
-    id: 2,
-    title: "Workshop Web Security",
-    date: "2026-05-20T08:30:00.000Z",
-    location: "Laborator C12, Bucuresti",
-    image: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&q=80",
-  },
-  {
-    id: 3,
-    title: "Conferinta Tech Trends",
-    date: "2025-11-05T09:00:00.000Z",
-    location: "Sala Polivalenta, Iasi",
-    image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&q=80",
-  },
-  {
-    id: 4,
-    title: "Meetup DevOps Student",
-    date: "2026-07-12T15:00:00.000Z",
-    location: "Hub Innovate, Timisoara",
-    image: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=1200&q=80",
-  },
-  {
-    id: 5,
-    title: "Seminar UX Design Essentials",
-    date: "2025-06-18T11:30:00.000Z",
-    location: "Corpul B, Sibiu",
-    image: "https://images.unsplash.com/photo-1559028012-481c04fa702d?w=1200&q=80",
-  },
-  {
-    id: 6,
-    title: "Career Fair IT & Software",
-    date: "2026-09-02T09:30:00.000Z",
-    location: "Centrul Expozitional, Brasov",
-    image: "https://images.unsplash.com/photo-1511578314322-379afb476865?w=1200&q=80",
-=======
   category: EventCategory;
 };
 
@@ -114,7 +63,6 @@ const MOCK_EVENTS: EventItem[] = [
     location: "Centrul Expozitional, Brasov",
     image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&q=80",
     category: "Seminar",
->>>>>>> main
   },
 ];
 
@@ -125,31 +73,8 @@ const dateFormatter = new Intl.DateTimeFormat("ro-RO", {
 });
 
 export default function EventCatalogPage() {
-<<<<<<< feat/event-catalog
-  const [activeTab, setActiveTab] = useState<ActiveTab>("upcoming");
-
-  const filteredEvents = useMemo(() => {
-    const now = new Date();
-    const isUpcoming = (event: EventItem) => new Date(event.date) > now;
-    const isHistory = (event: EventItem) => new Date(event.date) <= now;
-
-    if (activeTab === "upcoming") {
-      return [...MOCK_EVENTS]
-        .filter(isUpcoming)
-        .sort(
-          (a, b) =>
-            new Date(a.date).getTime() - new Date(b.date).getTime(),
-        );
-    }
-
-    return [...MOCK_EVENTS]
-      .filter(isHistory)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [activeTab]);
-=======
   const [activeTab, setActiveTab] = useState<EventTab>("upcoming");
-  const [selectedCategory, setSelectedCategory] =
-    useState<CategoryFilter>("Toate");
+  const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>("Toate");
 
   const filteredEvents = useMemo(() => {
     const now = new Date();
@@ -176,38 +101,10 @@ export default function EventCatalogPage() {
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
   }, [activeTab, selectedCategory]);
->>>>>>> main
 
   return (
     <div className="min-h-screen bg-gray-100 px-4 py-10">
       <div className="mx-auto w-full max-w-7xl">
-<<<<<<< feat/event-catalog
-        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">Event Catalog</h1>
-          <div className="inline-flex rounded-lg bg-white p-1 shadow-sm ring-1 ring-gray-200">
-            <button
-              type="button"
-              onClick={() => setActiveTab("upcoming")}
-              className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-                activeTab === "upcoming"
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              Evenimente Viitoare
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("history")}
-              className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-                activeTab === "history"
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              Istoric
-            </button>
-=======
         <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Event Catalog</h1>
 
@@ -250,17 +147,12 @@ export default function EventCatalogPage() {
               <option value="Party">Party</option>
               <option value="Seminar">Seminar</option>
             </select>
->>>>>>> main
           </div>
         </div>
 
         {filteredEvents.length === 0 ? (
           <div className="rounded-xl bg-white p-8 text-center text-gray-600 shadow-sm ring-1 ring-gray-200">
-<<<<<<< feat/event-catalog
-            Nu există evenimente pentru această secțiune.
-=======
             Nu există evenimente pentru filtrele selectate.
->>>>>>> main
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -277,14 +169,10 @@ export default function EventCatalogPage() {
                   />
                 </div>
 
-<<<<<<< feat/event-catalog
-                <div className="flex h-[220px] flex-col p-5">
-=======
                 <div className="flex h-[240px] flex-col p-5">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-blue-700">
                     {event.category}
                   </p>
->>>>>>> main
                   <h2 className="text-lg font-semibold text-gray-900">
                     {event.title}
                   </h2>
