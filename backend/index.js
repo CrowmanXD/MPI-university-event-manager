@@ -2,6 +2,7 @@ const express = require('express');
 const cors    = require('cors');
 require('dotenv').config();
 
+
 const authRouter    = require('./routes/auth');
 const errorHandler  = require('./middleware/errorHandler');
 
@@ -26,3 +27,4 @@ app.use(errorHandler);
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
 });
+module.exports = app;
