@@ -12,6 +12,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/migrations:/docker-entrypoint-initdb.d
 
   # Backend (Node.js API)
   backend:
@@ -24,6 +25,14 @@ services:
     environment:
       - DATABASE_URL=postgres://admin:secretpassword@db:5432/event_manager
       - PORT=8080
+      - APP_BASE_URL=http://localhost:8080
+      - UNIVERSITY_DOMAIN=student.university.edu
+      - SMTP_HOST=${SMTP_HOST:-sandbox.smtp.mailtrap.io}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - EMAIL_FROM=${EMAIL_FROM:-no-reply@university.edu}
     depends_on:
       - db
 
