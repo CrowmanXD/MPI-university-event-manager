@@ -74,8 +74,7 @@ const dateFormatter = new Intl.DateTimeFormat("ro-RO", {
 
 export default function EventCatalogPage() {
   const [activeTab, setActiveTab] = useState<EventTab>("upcoming");
-  const [selectedCategory, setSelectedCategory] =
-    useState<CategoryFilter>("Toate");
+  const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>("Toate");
 
   const filteredEvents = useMemo(() => {
     const now = new Date();
