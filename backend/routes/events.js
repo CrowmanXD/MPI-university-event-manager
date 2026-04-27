@@ -1,5 +1,5 @@
 const { Router }     = require('express');
-const { createEvent, listEvents, updateEvent, joinEvent } = require('../controllers/eventsController');
+const { createEvent, listEvents, updateEvent, joinEvent, cancelRegistration } = require('../controllers/eventsController');
 const authenticate   = require('../middleware/authenticate');
 
 const router = Router();
@@ -32,6 +32,12 @@ router.put('/:id', authenticate, asyncWrap(updateEvent));
  */
 router.post('/:id/join', authenticate, asyncWrap(joinEvent));
 
+/**
+ * @route  POST /api/events/:id/cancel
+ * @desc   Cancel a registration for an event
+ * @access Private — Bearer JWT required
+ */
+router.post('/:id/cancel', authenticate, asyncWrap(cancelRegistration));
 /**
  * Wraps an async route handler so errors are forwarded to the global
  * error-handling middleware instead of crashing the process.
