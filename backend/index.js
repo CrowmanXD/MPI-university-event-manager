@@ -3,6 +3,7 @@ const cors    = require('cors');
 require('dotenv').config();
 
 const authRouter    = require('./routes/auth');
+const eventsRouter  = require('./routes/events');
 const errorHandler  = require('./middleware/errorHandler');
 
 const app  = express();
@@ -17,7 +18,8 @@ app.get('/api/health', (_req, res) => {
     res.json({ status: 'OK', message: 'Backend is running!' });
 });
 
-app.use('/api/auth', authRouter);
+app.use('/api/auth',   authRouter);
+app.use('/api/events', eventsRouter);
 
 // ── Error handler (must be last) ─────────────────────────────────────────────
 app.use(errorHandler);
