@@ -1,10 +1,14 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import Link from "next/link";
 
 const EMAIL_DOMAIN = "@student.university.edu";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export default function RegisterPage() {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -31,13 +35,11 @@ export default function RegisterPage() {
   };
 
   const hasValidationErrors = useMemo(() => {
-    const currentEmailError = validateEmail(email);
-    const currentPasswordError = validatePassword(password);
-
-    return Boolean(currentEmailError || currentPasswordError);
+    return Boolean(validateEmail(email) || validatePassword(password));
   }, [email, password]);
 
-  const isSubmitDisabled = loading || !email || !password || hasValidationErrors;
+  const isSubmitDisabled =
+    loading || !firstName || !lastName || !email || !password || hasValidationErrors;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -45,32 +47,25 @@ export default function RegisterPage() {
 
     const currentEmailError = validateEmail(email);
     const currentPasswordError = validatePassword(password);
-
     setEmailError(currentEmailError);
     setPasswordError(currentPasswordError);
 
-    if (currentEmailError || currentPasswordError) {
-      return;
-    }
+    if (currentEmailError || currentPasswordError) return;
 
     setLoading(true);
 
     try {
-      // 1. Citim adresa backend-ului din variabilele de mediu Vercel.
-      // Dacă nu există (de ex. când lucrați pe laptop), dă fallback pe localhost.
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-
-      // 2. Lipim adresa de bază la ruta specifică
       const response = await fetch(`${API_URL}/api/auth/register`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, firstName, lastName }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error("Request-ul de înregistrare a eșuat.");
+        setSubmitError(data.error || "Nu am putut crea contul.");
+        return;
       }
 
       setIsSuccess(true);
@@ -81,16 +76,6 @@ export default function RegisterPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleEmailChange = (value: string) => {
-    setEmail(value);
-    setEmailError(validateEmail(value));
-  };
-
-  const handlePasswordChange = (value: string) => {
-    setPassword(value);
-    setPasswordError(validatePassword(value));
   };
 
   return (
@@ -104,12 +89,57 @@ export default function RegisterPage() {
         </p>
 
         {isSuccess ? (
-          <p className="mt-6 rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-            Cont creat cu succes! Te rugăm să îți verifici emailul pentru
-            confirmare.
-          </p>
+          <div className="mt-6 space-y-4">
+            <p className="rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+              Cont creat cu succes! Te rugăm să îți verifici emailul pentru
+              confirmare.
+            </p>
+            <p className="text-center text-sm text-gray-600">
+              <Link href="/login" className="font-medium text-blue-600 hover:underline">
+                Mergi la autentificare
+              </Link>
+            </p>
+          </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-6 space-y-5" noValidate>
+            {/* First Name + Last Name — deasupra Email-ului (AC #38) */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="firstName"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  Prenume
+                </label>
+                <input
+                  id="firstName"
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="Ion"
+                  required
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="lastName"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  Nume
+                </label>
+                <input
+                  id="lastName"
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Popescu"
+                  required
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+            </div>
+
             <div>
               <label
                 htmlFor="email"
@@ -121,7 +151,10 @@ export default function RegisterPage() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(event) => handleEmailChange(event.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailError(validateEmail(e.target.value));
+                }}
                 placeholder={`nume${EMAIL_DOMAIN}`}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 aria-describedby="email-error"
@@ -144,7 +177,10 @@ export default function RegisterPage() {
                 id="password"
                 type="password"
                 value={password}
-                onChange={(event) => handlePasswordChange(event.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setPasswordError(validatePassword(e.target.value));
+                }}
                 placeholder="Minim 8 caractere, cel puțin o cifră"
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 aria-describedby="password-error"
@@ -171,6 +207,13 @@ export default function RegisterPage() {
             </button>
           </form>
         )}
+
+        <p className="mt-6 text-center text-sm text-gray-600">
+          Ai deja cont?{" "}
+          <Link href="/login" className="font-medium text-blue-600 hover:underline">
+            Autentifică-te
+          </Link>
+        </p>
       </div>
     </div>
   );
