@@ -1,5 +1,6 @@
 const pool           = require('../db/pool');
 const { validateEvent } = require('../utils/validators');
+const jwt            = require('jsonwebtoken');
 
 /**
  * POST /api/events
@@ -13,19 +14,19 @@ const { validateEvent } = require('../utils/validators');
  *  3. The created event is immediately persisted and returned.
  */
 async function createEvent(req, res) {
-    const { title, description, event_date, event_time, location, max_capacity } = req.body;
+    const { title, description, event_date, event_time, location, max_capacity, category, image_url } = req.body;
 
     // ── 1. Validate all fields ──────────────────────────────────────────────
-    const check = validateEvent({ title, description, event_date, event_time, location, max_capacity });
+    const check = validateEvent({ title, description, event_date, event_time, location, max_capacity, category, image_url });
     if (!check.valid) {
         return res.status(400).json({ error: check.message });
     }
 
     // ── 2. Persist ──────────────────────────────────────────────────────────
     const result = await pool.query(
-        `INSERT INTO events (title, description, event_date, event_time, location, max_capacity, organizer_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id, title, description, event_date, event_time, location, max_capacity, organizer_id, created_at`,
+        `INSERT INTO events (title, description, event_date, event_time, location, max_capacity, organizer_id, category, image_url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         RETURNING id, title, description, event_date, event_time, location, max_capacity, category, image_url AS image, organizer_id, created_at`,
         [
             title.trim(),
             description.trim(),
@@ -34,6 +35,8 @@ async function createEvent(req, res) {
             location.trim(),
             Number(max_capacity),
             req.user.sub,   // set by authenticate middleware
+            category.trim(),
+            image_url.trim(),
         ]
     );
 
@@ -65,6 +68,8 @@ async function listEvents(req, res) {
              e.event_time,
              e.location,
              e.max_capacity,
+             e.category,
+             e.image_url AS image,
              (e.max_capacity - (SELECT COUNT(*) FROM event_registrations WHERE event_id = e.id))::int AS available_spots,
              e.organizer_id,
              e.created_at,
@@ -133,7 +138,7 @@ async function updateEvent(req, res) {
     }
 
     // ── 3. Merge incoming fields with existing values ────────────────────────
-    const { title, description, event_date, event_time, location, max_capacity } = req.body;
+    const { title, description, event_date, event_time, location, max_capacity, category, image_url } = req.body;
 
     const newTitle       = title        !== undefined ? title        : event.title;
     const newDescription = description  !== undefined ? description  : event.description;
@@ -141,6 +146,8 @@ async function updateEvent(req, res) {
     const newTime        = event_time   !== undefined ? event_time   : event.event_time.slice(0, 5);
     const newLocation    = location     !== undefined ? location     : event.location;
     const newCapacity    = max_capacity !== undefined ? max_capacity : event.max_capacity;
+    const newCategory    = category     !== undefined ? category     : event.category;
+    const newImageUrl    = image_url    !== undefined ? image_url    : event.image_url;
 
     // ── 4. Validate merged values ────────────────────────────────────────────
     const check = validateEvent({
@@ -150,6 +157,8 @@ async function updateEvent(req, res) {
         event_time:   newTime,
         location:     newLocation,
         max_capacity: newCapacity,
+        category:     newCategory,
+        image_url:    newImageUrl,
     });
     if (!check.valid) {
         return res.status(400).json({ error: check.message });
@@ -175,14 +184,16 @@ async function updateEvent(req, res) {
              event_time               = $4,
              location                 = $5,
              max_capacity             = $6,
+             category                 = $7,
+             image_url                = $8,
              updated_at               = NOW(),
-             previous_event_date      = CASE WHEN $7 THEN event_date      ELSE previous_event_date      END,
-             previous_event_time      = CASE WHEN $7 THEN event_time      ELSE previous_event_time      END,
-             previous_location        = CASE WHEN $7 THEN location        ELSE previous_location        END,
-             last_significant_change_at = CASE WHEN $7 THEN NOW()         ELSE last_significant_change_at END
-         WHERE id = $8
+             previous_event_date      = CASE WHEN $9 THEN event_date      ELSE previous_event_date      END,
+             previous_event_time      = CASE WHEN $9 THEN event_time      ELSE previous_event_time      END,
+             previous_location        = CASE WHEN $9 THEN location        ELSE previous_location        END,
+             last_significant_change_at = CASE WHEN $9 THEN NOW()         ELSE last_significant_change_at END
+         WHERE id = $10
          RETURNING
-             id, title, description, event_date, event_time, location, max_capacity,
+             id, title, description, event_date, event_time, location, max_capacity, category, image_url AS image,
              organizer_id, created_at, updated_at,
              last_significant_change_at,
              previous_event_date, previous_event_time, previous_location`,
@@ -193,8 +204,10 @@ async function updateEvent(req, res) {
             newTime,
             newLocation.trim(),
             Number(newCapacity),
-            hasSignificantChange,   // $7 — boolean flag
-            eventId,                // $8
+            newCategory.trim(),
+            newImageUrl.trim(),
+            hasSignificantChange,   // $9 — boolean flag
+            eventId,                // $10
         ]
     );
 
@@ -214,7 +227,7 @@ async function updateEvent(req, res) {
 }
 
 /**
- * POST /api/events/:id/join
+ * POST /api/events/:id/enroll
  *
  * Protected — requires a valid JWT.
  * 
@@ -222,7 +235,7 @@ async function updateEvent(req, res) {
  *  1. System decreases the available spots by 1 (by registering the user).
  *  2. If the event has reached max capacity, returns "Sold Out" error.
  */
-async function joinEvent(req, res) {
+async function enrollEvent(req, res) {
     const eventId = parseInt(req.params.id, 10);
     if (!Number.isInteger(eventId) || eventId <= 0) {
         return res.status(400).json({ error: 'Invalid event ID.' });
@@ -264,12 +277,12 @@ async function joinEvent(req, res) {
 
         if (insertRes.rows.length === 0) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ error: 'You have already joined this event.' });
+            return res.status(400).json({ error: 'You are already enrolled in this event.' });
         }
 
         await client.query('COMMIT');
         return res.status(200).json({ 
-            message: 'Successfully joined the event.',
+            message: 'Successfully enrolled in the event.',
             available_spots: max_capacity - current_registrations - 1
         });
     } catch (err) {
@@ -280,4 +293,185 @@ async function joinEvent(req, res) {
     }
 }
 
-module.exports = { createEvent, listEvents, updateEvent, joinEvent };
+/**
+/**
+ * POST /api/events/:id/cancel
+ *
+ * Protected — requires a valid JWT.
+ * * Acceptance criteria enforced here:
+ * 1. System increases the available spots by 1 (by removing the user's registration).
+ * 2. If the user is not registered, returns an error.
+ */
+async function cancelRegistration(req, res) {
+    const eventId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(eventId) || eventId <= 0) {
+        return res.status(400).json({ error: 'Invalid event ID.' });
+    }
+
+    const userId = req.user.sub;
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // Check current capacity and registrations
+        const eventRes = await client.query(
+            `SELECT max_capacity, 
+             (SELECT COUNT(*) FROM event_registrations WHERE event_id = $1) AS current_registrations
+             FROM events WHERE id = $1 FOR UPDATE`,
+            [eventId]
+        );
+
+        if (eventRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Event not found.' });
+        }
+
+        const max_capacity = eventRes.rows[0].max_capacity;
+        const current_registrations = parseInt(eventRes.rows[0].current_registrations, 10);
+
+        // Delete registration
+        const deleteRes = await client.query(
+            `DELETE FROM event_registrations 
+             WHERE event_id = $1 AND user_id = $2
+             RETURNING id`,
+            [eventId, userId]
+        );
+
+        if (deleteRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'You are not registered for this event.' });
+        }
+
+        await client.query('COMMIT');
+        return res.status(200).json({ 
+            message: 'Successfully cancelled registration.',
+            available_spots: max_capacity - current_registrations + 1
+        });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+}
+
+/**
+ * GET /api/events/:id
+ *
+ * Public — returns full details of a specific event.
+ */
+async function getEventById(req, res) {
+    const eventId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(eventId) || eventId <= 0) {
+        return res.status(400).json({ error: 'Invalid event ID.' });
+    }
+
+    const result = await pool.query(
+        `SELECT
+             e.id,
+             e.title,
+             e.description,
+             e.event_date,
+             e.event_time,
+             e.location,
+             e.max_capacity,
+             e.category,
+             e.image_url AS image,
+             (e.max_capacity - (SELECT COUNT(*) FROM event_registrations WHERE event_id = e.id))::int AS available_spots,
+             e.organizer_id,
+             e.created_at,
+             e.updated_at,
+             e.last_significant_change_at,
+             e.previous_event_date,
+             e.previous_event_time,
+             e.previous_location,
+             u.first_name  AS organizer_first_name,
+             u.last_name   AS organizer_last_name
+         FROM   events e
+         JOIN   users  u ON u.id = e.organizer_id
+         WHERE  e.id = $1`,
+        [eventId]
+    );
+
+    if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Event not found.' });
+    }
+
+    const event = result.rows[0];
+    
+    // Check if the current user is enrolled
+    let isEnrolled = false;
+    const authHeader = req.headers['authorization'] || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (token) {
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const userId = decoded.sub;
+            const regRes = await pool.query(
+                `SELECT 1 FROM event_registrations WHERE event_id = $1 AND user_id = $2`,
+                [eventId, userId]
+            );
+            if (regRes.rows.length > 0) {
+                isEnrolled = true;
+            }
+        } catch (e) {
+            // Token is invalid or expired, ignore since this is a public endpoint
+        }
+    }
+    
+    event.is_enrolled = isEnrolled;
+    
+    return res.status(200).json({ event });
+}
+
+/**
+ * GET /api/events/:id/attendees
+ *
+ * Protected — only the event's organizer or an admin can view attendees.
+ */
+async function getEventAttendees(req, res) {
+    const eventId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(eventId) || eventId <= 0) {
+        return res.status(400).json({ error: 'Invalid event ID.' });
+    }
+
+    const eventRes = await pool.query(
+        `SELECT e.organizer_id, u.is_admin AS caller_is_admin
+         FROM   events e
+         JOIN   users  u ON u.id = $1
+         WHERE  e.id = $2`,
+        [req.user.sub, eventId]
+    );
+
+    if (eventRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Event not found.' });
+    }
+
+    const { organizer_id, caller_is_admin } = eventRes.rows[0];
+    if (organizer_id !== req.user.sub && !caller_is_admin) {
+        return res.status(403).json({ error: 'Forbidden. Only the organizer or admin can view attendees.' });
+    }
+
+    const attendeesRes = await pool.query(
+        `SELECT u.id, u.first_name, u.last_name, u.email, er.registered_at
+         FROM event_registrations er
+         JOIN users u ON u.id = er.user_id
+         WHERE er.event_id = $1
+         ORDER BY er.registered_at ASC`,
+        [eventId]
+    );
+
+    return res.status(200).json({ attendees: attendeesRes.rows });
+}
+
+// Am inclus TOATE funcțiile în exportul final!
+module.exports = { 
+    createEvent, 
+    listEvents, 
+    updateEvent, 
+    enrollEvent, 
+    cancelRegistration, 
+    getEventById, 
+    getEventAttendees 
+};

@@ -1,5 +1,5 @@
 /**
- * Integration tests for POST /api/events/:id/enroll
+ * Integration tests for POST /api/events/:id/cancel
  */
 
 jest.mock('../../db/pool', () => ({ 
@@ -33,7 +33,7 @@ function makeToken(payload = {}) {
 
 const VALID_TOKEN = makeToken();
 
-describe('POST /api/events/:id/enroll', () => {
+describe('POST /api/events/:id/cancel', () => {
     let mockClient;
 
     beforeEach(() => {
@@ -47,52 +47,37 @@ describe('POST /api/events/:id/enroll', () => {
         pool.connect.mockResolvedValue(mockClient);
     });
 
-    test('200 – successfully joins an event', async () => {
+    test('200 – successfully cancels registration', async () => {
         mockClient.query.mockImplementation(async (text) => {
             if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') return {};
             if (text.includes('SELECT')) return { rows: [{ max_capacity: 100, current_registrations: 50 }] };
-            if (text.includes('INSERT')) return { rows: [{ id: 1 }] };
+            if (text.includes('DELETE')) return { rows: [{ id: 1 }] };
             return { rows: [] };
         });
 
         const res = await request(app)
-            .post('/api/events/1/enroll')
+            .post('/api/events/1/cancel')
             .set('Authorization', `Bearer ${VALID_TOKEN}`);
 
         expect(res.status).toBe(200);
-        expect(res.body.message).toMatch(/Successfully enrolled/i);
-        expect(res.body.available_spots).toBe(49);
+        expect(res.body.message).toMatch(/Successfully cancelled/i);
+        expect(res.body.available_spots).toBe(51);
     });
 
-    test('400 – rejects if event is sold out', async () => {
-        mockClient.query.mockImplementation(async (text) => {
-            if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') return {};
-            if (text.includes('SELECT')) return { rows: [{ max_capacity: 10, current_registrations: 10 }] };
-            return { rows: [] };
-        });
-
-        const res = await request(app)
-            .post('/api/events/1/enroll')
-            .set('Authorization', `Bearer ${VALID_TOKEN}`);
-
-        expect(res.status).toBe(400);
-        expect(res.body.error).toMatch(/Sold Out/i);
-    });
-
-    test('400 – rejects if already joined', async () => {
+    test('400 – rejects if not registered', async () => {
         mockClient.query.mockImplementation(async (text) => {
             if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') return {};
             if (text.includes('SELECT')) return { rows: [{ max_capacity: 100, current_registrations: 50 }] };
-            if (text.includes('INSERT')) return { rows: [] };
+            if (text.includes('DELETE')) return { rows: [] };
             return { rows: [] };
         });
 
         const res = await request(app)
-            .post('/api/events/1/enroll')
+            .post('/api/events/1/cancel')
             .set('Authorization', `Bearer ${VALID_TOKEN}`);
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toMatch(/already enrolled/i);
+        expect(res.body.error).toMatch(/not registered/i);
     });
 
     test('404 – rejects if event not found', async () => {
@@ -103,7 +88,7 @@ describe('POST /api/events/:id/enroll', () => {
         });
 
         const res = await request(app)
-            .post('/api/events/999/enroll')
+            .post('/api/events/999/cancel')
             .set('Authorization', `Bearer ${VALID_TOKEN}`);
 
         expect(res.status).toBe(404);

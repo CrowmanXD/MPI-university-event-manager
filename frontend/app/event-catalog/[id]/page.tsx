@@ -40,44 +40,48 @@ export default function EventDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [isEnrolling, setIsEnrolling] = useState(false);
+const [isEnrolling, setIsEnrolling] = useState(false);
   const [enrollState, setEnrollState] = useState<EnrollState>("idle");
   const [enrollMessage, setEnrollMessage] = useState("");
 
-  const fetchEvent = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // Încearcă GET /api/events/:id (când backend-ul îl va implementa)
-      const res = await fetch(`${API_URL}/api/events/${eventId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setEvent(data.event);
-        return;
-      }
-      // Fallback: ia lista completă și filtrează după ID
-      const listRes = await fetch(`${API_URL}/api/events`);
-      if (!listRes.ok) throw new Error("Nu am putut încărca evenimentul.");
-      const listData = await listRes.json();
-      const found = (listData.events as EventDetail[]).find(
-        (e) => String(e.id) === eventId,
-      );
-      if (!found) throw new Error("Evenimentul nu a fost găsit.");
-      setEvent(found);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Eroare la încărcarea evenimentului.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [eventId]);
-
   useEffect(() => {
+    const fetchEvent = async () => {
+      // Nu mai apelăm setIsLoading(true) aici deoarece am setat deja valoarea inițială la true în useState.
+      try {
+        // Încearcă GET /api/events/:id (când backend-ul îl va implementa)
+        const res = await fetch(`${API_URL}/api/events/${eventId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setEvent(data.event);
+          return;
+        }
+
+        // Fallback: ia lista completă și filtrează după ID
+        const listRes = await fetch(`${API_URL}/api/events`);
+        if (!listRes.ok) throw new Error("Nu am putut încărca evenimentul.");
+        const listData = await listRes.json();
+        
+        const found = (listData.events as EventDetail[]).find(
+          (e) => String(e.id) === eventId,
+        );
+        
+        if (!found) throw new Error("Evenimentul nu a fost găsit.");
+        setEvent(found);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Eroare la încărcarea evenimentului.",
+        );
+      } finally {
+        // Aici este perfect valid să setăm state-ul, deoarece se întâmplă asincron, la finalul request-ului.
+        setIsLoading(false);
+      }
+    };
+
     void fetchEvent();
-  }, [fetchEvent]);
+  }, [eventId]); // Acum useEffect depinde direct de id-ul din URL
+
+    void fetchEvent();
+  }, [eventId]); // Acum useEffect depinde direct de id-ul din URL
 
   const handleEnroll = async () => {
     if (!isLoggedIn()) {
