@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { authHeaders, isLoggedIn } from "@/lib/auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -21,6 +22,8 @@ type EventDetail = {
   organizer_last_name?: string;
 };
 
+type EnrollState = "idle" | "enrolled" | "full" | "error";
+
 const dateFormatter = new Intl.DateTimeFormat("ro-RO", {
   weekday: "long",
   day: "numeric",
@@ -30,11 +33,16 @@ const dateFormatter = new Intl.DateTimeFormat("ro-RO", {
 
 export default function EventDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const eventId = params.id as string;
 
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+const [isEnrolling, setIsEnrolling] = useState(false);
+  const [enrollState, setEnrollState] = useState<EnrollState>("idle");
+  const [enrollMessage, setEnrollMessage] = useState("");
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -71,6 +79,56 @@ export default function EventDetailPage() {
 
     void fetchEvent();
   }, [eventId]); // Acum useEffect depinde direct de id-ul din URL
+
+  const handleEnroll = async () => {
+    if (!isLoggedIn()) {
+      router.push("/login");
+      return;
+    }
+
+    setIsEnrolling(true);
+    setEnrollMessage("");
+
+    try {
+      const response = await fetch(`${API_URL}/api/events/${eventId}/join`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setEnrollState("enrolled");
+        setEnrollMessage("Te-ai înscris cu succes! Ne vedem la eveniment. 🎉");
+        setEvent((prev) =>
+          prev
+            ? {
+                ...prev,
+                available_spots:
+                  data.available_spots ?? prev.available_spots - 1,
+              }
+            : prev,
+        );
+        return;
+      }
+
+      if (data.error?.includes("Sold Out")) {
+        setEnrollState("full");
+        setEnrollMessage("Din păcate evenimentul este complet.");
+      } else if (data.error?.includes("already joined")) {
+        setEnrollState("enrolled");
+        setEnrollMessage("Ești deja înscris la acest eveniment.");
+      } else {
+        setEnrollState("error");
+        setEnrollMessage(data.error || "A apărut o eroare. Încearcă din nou.");
+      }
+    } catch {
+      setEnrollState("error");
+      setEnrollMessage("Nu am putut conecta la server.");
+    } finally {
+      setIsEnrolling(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -163,6 +221,42 @@ export default function EventDetailPage() {
               Descriere
             </h2>
             <p className="mt-2 leading-7 text-gray-700">{event.description}</p>
+          </div>
+
+          {/* Buton Înscrie-te — AC #35 */}
+          <div className="mt-8 border-t border-gray-100 pt-6">
+            {enrollMessage && (
+              <p
+                className={`mb-4 rounded-md p-3 text-sm ${
+                  enrollState === "enrolled"
+                    ? "border border-green-200 bg-green-50 text-green-700"
+                    : "border border-red-200 bg-red-50 text-red-700"
+                }`}
+              >
+                {enrollMessage}
+              </p>
+            )}
+
+            {enrollState !== "enrolled" && (
+              <button
+                type="button"
+                onClick={() => void handleEnroll()}
+                disabled={isEnrolling || isFull || enrollState === "full"}
+                className="inline-flex rounded-md bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+              >
+                {isEnrolling
+                  ? "Se procesează..."
+                  : isFull
+                    ? "Sold Out — Fără locuri"
+                    : "Înscrie-te"}
+              </button>
+            )}
+
+            {enrollState === "enrolled" && (
+              <span className="inline-flex items-center gap-2 rounded-md bg-green-100 px-6 py-3 text-sm font-semibold text-green-800">
+                ✓ Înscris
+              </span>
+            )}
           </div>
         </div>
       </div>
