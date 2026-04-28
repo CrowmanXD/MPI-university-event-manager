@@ -1,5 +1,5 @@
 const { Router }     = require('express');
-const { createEvent, listEvents, updateEvent, enrollEvent, getEventById, getEventAttendees } = require('../controllers/eventsController');
+const { createEvent, listEvents, updateEvent, enrollEvent, getEventById, getEventAttendees, cancelRegistration } = require('../controllers/eventsController');
 const authenticate   = require('../middleware/authenticate');
 
 const router = Router();
