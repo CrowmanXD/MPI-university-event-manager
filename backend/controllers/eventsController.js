@@ -1,5 +1,6 @@
 const pool           = require('../db/pool');
 const { validateEvent } = require('../utils/validators');
+const jwt            = require('jsonwebtoken');
 
 /**
  * POST /api/events
@@ -214,7 +215,7 @@ async function updateEvent(req, res) {
 }
 
 /**
- * POST /api/events/:id/join
+ * POST /api/events/:id/enroll
  *
  * Protected — requires a valid JWT.
  * 
@@ -222,7 +223,7 @@ async function updateEvent(req, res) {
  *  1. System decreases the available spots by 1 (by registering the user).
  *  2. If the event has reached max capacity, returns "Sold Out" error.
  */
-async function joinEvent(req, res) {
+async function enrollEvent(req, res) {
     const eventId = parseInt(req.params.id, 10);
     if (!Number.isInteger(eventId) || eventId <= 0) {
         return res.status(400).json({ error: 'Invalid event ID.' });
@@ -264,12 +265,12 @@ async function joinEvent(req, res) {
 
         if (insertRes.rows.length === 0) {
             await client.query('ROLLBACK');
-            return res.status(400).json({ error: 'You have already joined this event.' });
+            return res.status(400).json({ error: 'You are already enrolled in this event.' });
         }
 
         await client.query('COMMIT');
         return res.status(200).json({ 
-            message: 'Successfully joined the event.',
+            message: 'Successfully enrolled in the event.',
             available_spots: max_capacity - current_registrations - 1
         });
     } catch (err) {
@@ -322,6 +323,28 @@ async function getEventById(req, res) {
 
     const event = result.rows[0];
     
+    // Check if the current user is enrolled
+    let isEnrolled = false;
+    const authHeader = req.headers['authorization'] || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (token) {
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const userId = decoded.sub;
+            const regRes = await pool.query(
+                `SELECT 1 FROM event_registrations WHERE event_id = $1 AND user_id = $2`,
+                [eventId, userId]
+            );
+            if (regRes.rows.length > 0) {
+                isEnrolled = true;
+            }
+        } catch (e) {
+            // Token is invalid or expired, ignore since this is a public endpoint
+        }
+    }
+    
+    event.is_enrolled = isEnrolled;
+    
     // Provide a fallback category and image for the frontend
     event.category = event.category || 'Workshop';
     event.image = event.image || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80';
@@ -369,4 +392,4 @@ async function getEventAttendees(req, res) {
     return res.status(200).json({ attendees: attendeesRes.rows });
 }
 
-module.exports = { createEvent, listEvents, updateEvent, joinEvent, getEventById, getEventAttendees };
+module.exports = { createEvent, listEvents, updateEvent, enrollEvent, getEventById, getEventAttendees };

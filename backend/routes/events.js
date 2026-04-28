@@ -1,5 +1,5 @@
 const { Router }     = require('express');
-const { createEvent, listEvents, updateEvent, joinEvent, getEventById, getEventAttendees } = require('../controllers/eventsController');
+const { createEvent, listEvents, updateEvent, enrollEvent, getEventById, getEventAttendees } = require('../controllers/eventsController');
 const authenticate   = require('../middleware/authenticate');
 
 const router = Router();
@@ -26,11 +26,11 @@ router.post('/', authenticate, asyncWrap(createEvent));
 router.put('/:id', authenticate, asyncWrap(updateEvent));
 
 /**
- * @route  POST /api/events/:id/join
- * @desc   Join an event
+ * @route  POST /api/events/:id/enroll
+ * @desc   Enroll in an event
  * @access Private — Bearer JWT required
  */
-router.post('/:id/join', authenticate, asyncWrap(joinEvent));
+router.post('/:id/enroll', authenticate, asyncWrap(enrollEvent));
 
 /**
  * @route  GET /api/events/:id
