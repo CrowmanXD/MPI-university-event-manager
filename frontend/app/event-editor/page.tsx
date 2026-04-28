@@ -70,6 +70,8 @@ export default function EventEditorPage() {
           event_time: form.event_time,
           location: form.location.trim(),
           max_capacity: Number(form.max_capacity),
+          category: form.category,
+          image_url: form.image_url.trim()
         }),
       });
 
