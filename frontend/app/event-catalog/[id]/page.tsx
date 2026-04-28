@@ -90,7 +90,7 @@ const [isEnrolling, setIsEnrolling] = useState(false);
     setEnrollMessage("");
 
     try {
-      const response = await fetch(`${API_URL}/api/events/${eventId}/join`, {
+      const response = await fetch(`${API_URL}/api/events/${eventId}/enroll`, {
         method: "POST",
         headers: authHeaders(),
       });
