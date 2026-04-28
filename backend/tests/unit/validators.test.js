@@ -78,6 +78,8 @@ describe('validateEvent', () => {
         event_time:   '14:00',
         location:     'Room 101',
         max_capacity: 50,
+        category:     'Workshop',
+        image_url:    'https://example.com/image.jpg',
     });
 
     test('accepts a fully valid event', () => {
@@ -128,6 +130,14 @@ describe('validateEvent', () => {
 
     test('rejects non-integer max_capacity', () => {
         expect(validateEvent({ ...valid(), max_capacity: 1.5 }).valid).toBe(false);
+    });
+
+    test('rejects missing category', () => {
+        expect(validateEvent({ ...valid(), category: '' }).valid).toBe(false);
+    });
+
+    test('rejects missing image_url', () => {
+        expect(validateEvent({ ...valid(), image_url: '' }).valid).toBe(false);
     });
 });
 

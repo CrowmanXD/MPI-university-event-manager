@@ -46,6 +46,8 @@ const VALID_BODY = () => ({
     event_time:   '09:00',
     location:     'Main Auditorium, Building A',
     max_capacity: 120,
+    category:     'Workshop',
+    image_url:    'https://example.com/image.jpg',
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

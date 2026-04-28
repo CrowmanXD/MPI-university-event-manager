@@ -1,5 +1,5 @@
 /**
- * Integration tests for POST /api/events/:id/join
+ * Integration tests for POST /api/events/:id/enroll
  */
 
 jest.mock('../../db/pool', () => ({ 
@@ -33,7 +33,7 @@ function makeToken(payload = {}) {
 
 const VALID_TOKEN = makeToken();
 
-describe('POST /api/events/:id/join', () => {
+describe('POST /api/events/:id/enroll', () => {
     let mockClient;
 
     beforeEach(() => {
@@ -56,11 +56,11 @@ describe('POST /api/events/:id/join', () => {
         });
 
         const res = await request(app)
-            .post('/api/events/1/join')
+            .post('/api/events/1/enroll')
             .set('Authorization', `Bearer ${VALID_TOKEN}`);
 
         expect(res.status).toBe(200);
-        expect(res.body.message).toMatch(/Successfully joined/i);
+        expect(res.body.message).toMatch(/Successfully enrolled/i);
         expect(res.body.available_spots).toBe(49);
     });
 
@@ -72,7 +72,7 @@ describe('POST /api/events/:id/join', () => {
         });
 
         const res = await request(app)
-            .post('/api/events/1/join')
+            .post('/api/events/1/enroll')
             .set('Authorization', `Bearer ${VALID_TOKEN}`);
 
         expect(res.status).toBe(400);
@@ -88,11 +88,11 @@ describe('POST /api/events/:id/join', () => {
         });
 
         const res = await request(app)
-            .post('/api/events/1/join')
+            .post('/api/events/1/enroll')
             .set('Authorization', `Bearer ${VALID_TOKEN}`);
 
         expect(res.status).toBe(400);
-        expect(res.body.error).toMatch(/already joined/i);
+        expect(res.body.error).toMatch(/already enrolled/i);
     });
 
     test('404 – rejects if event not found', async () => {
@@ -103,7 +103,7 @@ describe('POST /api/events/:id/join', () => {
         });
 
         const res = await request(app)
-            .post('/api/events/999/join')
+            .post('/api/events/999/enroll')
             .set('Authorization', `Bearer ${VALID_TOKEN}`);
 
         expect(res.status).toBe(404);
