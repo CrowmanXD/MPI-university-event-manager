@@ -80,9 +80,6 @@ const [isEnrolling, setIsEnrolling] = useState(false);
     void fetchEvent();
   }, [eventId]); // Acum useEffect depinde direct de id-ul din URL
 
-    void fetchEvent();
-  }, [eventId]); // Acum useEffect depinde direct de id-ul din URL
-
   const handleEnroll = async () => {
     if (!isLoggedIn()) {
       router.push("/login");
