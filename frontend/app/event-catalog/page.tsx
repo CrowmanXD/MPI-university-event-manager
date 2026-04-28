@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
 type EventCategory = "Workshop" | "Party" | "Seminar";
@@ -181,12 +182,12 @@ export default function EventCatalogPage() {
                   </p>
                   <p className="mt-1 text-sm text-gray-500">{event.location}</p>
 
-                  <button
-                    type="button"
+                  <Link
+                    href={`/event-catalog/${event.id}`}
                     className="mt-auto inline-flex w-fit rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
                   >
                     Detalii
-                  </button>
+                  </Link>
                 </div>
               </article>
             ))}
