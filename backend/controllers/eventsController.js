@@ -294,6 +294,69 @@ async function enrollEvent(req, res) {
 }
 
 /**
+/**
+ * POST /api/events/:id/cancel
+ *
+ * Protected — requires a valid JWT.
+ * * Acceptance criteria enforced here:
+ * 1. System increases the available spots by 1 (by removing the user's registration).
+ * 2. If the user is not registered, returns an error.
+ */
+async function cancelRegistration(req, res) {
+    const eventId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(eventId) || eventId <= 0) {
+        return res.status(400).json({ error: 'Invalid event ID.' });
+    }
+
+    const userId = req.user.sub;
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        // Check current capacity and registrations
+        const eventRes = await client.query(
+            `SELECT max_capacity, 
+             (SELECT COUNT(*) FROM event_registrations WHERE event_id = $1) AS current_registrations
+             FROM events WHERE id = $1 FOR UPDATE`,
+            [eventId]
+        );
+
+        if (eventRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Event not found.' });
+        }
+
+        const max_capacity = eventRes.rows[0].max_capacity;
+        const current_registrations = parseInt(eventRes.rows[0].current_registrations, 10);
+
+        // Delete registration
+        const deleteRes = await client.query(
+            `DELETE FROM event_registrations 
+             WHERE event_id = $1 AND user_id = $2
+             RETURNING id`,
+            [eventId, userId]
+        );
+
+        if (deleteRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'You are not registered for this event.' });
+        }
+
+        await client.query('COMMIT');
+        return res.status(200).json({ 
+            message: 'Successfully cancelled registration.',
+            available_spots: max_capacity - current_registrations + 1
+        });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+    } finally {
+        client.release();
+    }
+}
+
+/**
  * GET /api/events/:id
  *
  * Public — returns full details of a specific event.
@@ -359,8 +422,6 @@ async function getEventById(req, res) {
     
     event.is_enrolled = isEnrolled;
     
-
-
     return res.status(200).json({ event });
 }
 
@@ -404,4 +465,13 @@ async function getEventAttendees(req, res) {
     return res.status(200).json({ attendees: attendeesRes.rows });
 }
 
-module.exports = { createEvent, listEvents, updateEvent, enrollEvent, getEventById, getEventAttendees };
+// Am inclus TOATE funcțiile în exportul final!
+module.exports = { 
+    createEvent, 
+    listEvents, 
+    updateEvent, 
+    enrollEvent, 
+    cancelRegistration, 
+    getEventById, 
+    getEventAttendees 
+};
