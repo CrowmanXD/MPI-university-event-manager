@@ -280,4 +280,93 @@ async function joinEvent(req, res) {
     }
 }
 
-module.exports = { createEvent, listEvents, updateEvent, joinEvent };
+/**
+ * GET /api/events/:id
+ *
+ * Public — returns full details of a specific event.
+ */
+async function getEventById(req, res) {
+    const eventId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(eventId) || eventId <= 0) {
+        return res.status(400).json({ error: 'Invalid event ID.' });
+    }
+
+    const result = await pool.query(
+        `SELECT
+             e.id,
+             e.title,
+             e.description,
+             e.event_date,
+             e.event_time,
+             e.location,
+             e.max_capacity,
+             (e.max_capacity - (SELECT COUNT(*) FROM event_registrations WHERE event_id = e.id))::int AS available_spots,
+             e.organizer_id,
+             e.created_at,
+             e.updated_at,
+             e.last_significant_change_at,
+             e.previous_event_date,
+             e.previous_event_time,
+             e.previous_location,
+             u.first_name  AS organizer_first_name,
+             u.last_name   AS organizer_last_name
+         FROM   events e
+         JOIN   users  u ON u.id = e.organizer_id
+         WHERE  e.id = $1`,
+        [eventId]
+    );
+
+    if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Event not found.' });
+    }
+
+    const event = result.rows[0];
+    
+    // Provide a fallback category and image for the frontend
+    event.category = event.category || 'Workshop';
+    event.image = event.image || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80';
+
+    return res.status(200).json({ event });
+}
+
+/**
+ * GET /api/events/:id/attendees
+ *
+ * Protected — only the event's organizer or an admin can view attendees.
+ */
+async function getEventAttendees(req, res) {
+    const eventId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(eventId) || eventId <= 0) {
+        return res.status(400).json({ error: 'Invalid event ID.' });
+    }
+
+    const eventRes = await pool.query(
+        `SELECT e.organizer_id, u.is_admin AS caller_is_admin
+         FROM   events e
+         JOIN   users  u ON u.id = $1
+         WHERE  e.id = $2`,
+        [req.user.sub, eventId]
+    );
+
+    if (eventRes.rows.length === 0) {
+        return res.status(404).json({ error: 'Event not found.' });
+    }
+
+    const { organizer_id, caller_is_admin } = eventRes.rows[0];
+    if (organizer_id !== req.user.sub && !caller_is_admin) {
+        return res.status(403).json({ error: 'Forbidden. Only the organizer or admin can view attendees.' });
+    }
+
+    const attendeesRes = await pool.query(
+        `SELECT u.id, u.first_name, u.last_name, u.email, er.registered_at
+         FROM event_registrations er
+         JOIN users u ON u.id = er.user_id
+         WHERE er.event_id = $1
+         ORDER BY er.registered_at ASC`,
+        [eventId]
+    );
+
+    return res.status(200).json({ attendees: attendeesRes.rows });
+}
+
+module.exports = { createEvent, listEvents, updateEvent, joinEvent, getEventById, getEventAttendees };
