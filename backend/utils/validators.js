@@ -41,10 +41,10 @@ function validatePassword(password) {
  *  - event_time must be a valid time string (HH:MM or HH:MM:SS)
  *  - max_capacity must be a positive integer
  *
- * @param {{ title, description, event_date, event_time, location, max_capacity }} fields
+ * @param {{ title, description, event_date, event_time, location, max_capacity, category, image_url }} fields
  * @returns {{ valid: boolean, message?: string }}
  */
-function validateEvent({ title, description, event_date, event_time, location, max_capacity }) {
+function validateEvent({ title, description, event_date, event_time, location, max_capacity, category, image_url }) {
     if (!title || typeof title !== 'string' || !title.trim()) {
         return { valid: false, message: 'Title is required.' };
     }
@@ -59,6 +59,12 @@ function validateEvent({ title, description, event_date, event_time, location, m
     }
     if (!event_time || !/^\d{2}:\d{2}(:\d{2})?$/.test(event_time)) {
         return { valid: false, message: 'Time must be in HH:MM or HH:MM:SS format.' };
+    }
+    if (!category || typeof category !== 'string' || !category.trim()) {
+        return { valid: false, message: 'Category is required.' };
+    }
+    if (!image_url || typeof image_url !== 'string' || !image_url.trim()) {
+        return { valid: false, message: 'Image URL is required.' };
     }
 
     // Reject dates strictly in the past (compare date-only, ignore time-of-day)
