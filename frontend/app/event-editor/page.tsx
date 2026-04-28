@@ -1,86 +1,91 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { authHeaders, isLoggedIn } from "@/lib/auth";
 
-type EventData = {
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
+type CreateEventForm = {
   title: string;
-  date: string;
-  location: string;
   description: string;
+  event_date: string;
+  event_time: string;
+  location: string;
+  max_capacity: string;
+  category: string;
+  image_url: string;
 };
 
-const originalEvent: EventData = {
-  title: "Innovation Day 2026",
-  date: "2026-10-15T09:00",
-  location: "Aula Magna, Cluj-Napoca",
-  description:
-    "Eveniment dedicat studentilor pasionati de tehnologie, cu sesiuni de networking si prezentari despre trendurile din industrie.",
-};
-
-const formatDisplayDate = (value: string) => {
-  const parsedDate = new Date(value);
-  if (Number.isNaN(parsedDate.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("ro-RO", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(parsedDate);
+const EMPTY_FORM: CreateEventForm = {
+  title: "",
+  description: "",
+  event_date: "",
+  event_time: "",
+  location: "",
+  max_capacity: "",
+  category: "",
+  image_url: "",
 };
 
 export default function EventEditorPage() {
-  const [currentEvent, setCurrentEvent] = useState<EventData>(originalEvent);
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState<EventData>(currentEvent);
+  const router = useRouter();
+  const [form, setForm] = useState<CreateEventForm>(EMPTY_FORM);
   const [isSaving, setIsSaving] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [isSuccess, setIsSuccess] = useState(false);
 
-  const locationUpdated = useMemo(
-    () => currentEvent.location !== originalEvent.location,
-    [currentEvent.location],
-  );
+  const isFormValid =
+    form.title.trim() &&
+    form.description.trim() &&
+    form.event_date &&
+    form.event_time &&
+    form.location.trim() &&
+    form.max_capacity;
 
-  const dateUpdated = useMemo(
-    () => currentEvent.date !== originalEvent.date,
-    [currentEvent.date],
-  );
-
-  const handleStartEditing = () => {
-    setFormData(currentEvent);
-    setSubmitError("");
-    setIsEditing(true);
+  const handleChange = (field: keyof CreateEventForm, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleCancel = () => {
-    setFormData(currentEvent);
-    setSubmitError("");
-    setIsEditing(false);
-  };
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
 
-  const handleSave = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+    if (!isLoggedIn()) {
+      router.push("/login");
+      return;
+    }
+
     setSubmitError("");
     setIsSaving(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 900));
-
-      await fetch("/api/events/update", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
+      const response = await fetch(`${API_URL}/api/events`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          title: form.title.trim(),
+          description: form.description.trim(),
+          event_date: form.event_date,
+          event_time: form.event_time,
+          location: form.location.trim(),
+          max_capacity: Number(form.max_capacity),
+        }),
       });
 
-      setCurrentEvent(formData);
-      setIsEditing(false);
+      const data = await response.json();
+
+      if (!response.ok) {
+        setSubmitError(data.error || "Nu am putut crea evenimentul.");
+        return;
+      }
+
+      setIsSuccess(true);
+      setForm(EMPTY_FORM);
     } catch {
-      setSubmitError("Modificarile nu au putut fi salvate. Incearca din nou.");
+      setSubmitError(
+        "Conexiune eșuată. Verifică că serverul rulează și încearcă din nou.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -88,158 +93,198 @@ export default function EventEditorPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 px-4 py-10">
-      <div className="mx-auto w-full max-w-3xl">
+      <div className="mx-auto w-full max-w-2xl">
+        <Link
+          href="/"
+          className="mb-6 inline-block text-sm text-blue-600 hover:underline"
+        >
+          ← Acasă
+        </Link>
+
         <div className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-gray-200">
           <h1 className="text-2xl font-bold text-gray-900">
-            Vizualizare si Editare Eveniment
+            Creare Eveniment Nou
           </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Completează detaliile pentru a publica un eveniment în catalog.
+          </p>
 
-          {!isEditing ? (
-            <div className="mt-6 space-y-5">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">
-                  Titlu
-                </p>
-                <p className="mt-1 text-lg font-semibold text-gray-900">
-                  {currentEvent.title}
-                </p>
+          {isSuccess ? (
+            <div className="mt-6 space-y-4">
+              <p className="rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+                Evenimentul a fost creat cu succes și este acum vizibil în
+                catalog!
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/event-catalog"
+                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                >
+                  Vezi Catalogul
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setIsSuccess(false)}
+                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                >
+                  Creează Alt Eveniment
+                </button>
               </div>
-
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">
-                  Data
-                </p>
-                <div className="mt-1 flex items-center gap-2">
-                  <p
-                    className={`text-base ${
-                      dateUpdated ? "font-semibold text-orange-700" : "text-gray-800"
-                    }`}
-                  >
-                    {formatDisplayDate(currentEvent.date)}
-                  </p>
-                  {dateUpdated && (
-                    <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
-                      Program Modificat
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">
-                  Locatie
-                </p>
-                <div className="mt-1 flex items-center gap-2">
-                  <p
-                    className={`text-base ${
-                      locationUpdated
-                        ? "font-semibold text-orange-700"
-                        : "text-gray-800"
-                    }`}
-                  >
-                    {currentEvent.location}
-                  </p>
-                  {locationUpdated && (
-                    <span className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
-                      Locatie Actualizata
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500">
-                  Descriere
-                </p>
-                <p className="mt-1 leading-7 text-gray-700">
-                  {currentEvent.description}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleStartEditing}
-                className="mt-2 inline-flex rounded-md bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
-              >
-                Editeaza Eveniment
-              </button>
             </div>
           ) : (
-            <form onSubmit={handleSave} className="mt-6 space-y-5">
+            <form onSubmit={handleSubmit} className="mt-6 space-y-5" noValidate>
+              {/* Titlu */}
               <div>
                 <label
                   htmlFor="title"
                   className="mb-2 block text-sm font-medium text-gray-700"
                 >
-                  Titlu
+                  Titlu *
                 </label>
                 <input
                   id="title"
                   type="text"
-                  value={formData.title}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, title: e.target.value }))
-                  }
+                  value={form.title}
+                  onChange={(e) => handleChange("title", e.target.value)}
+                  placeholder="Ex: Workshop React Avansat"
+                  required
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
               </div>
 
-              <div>
-                <label
-                  htmlFor="date"
-                  className="mb-2 block text-sm font-medium text-gray-700"
-                >
-                  Data
-                </label>
-                <input
-                  id="date"
-                  type="datetime-local"
-                  value={formData.date}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, date: e.target.value }))
-                  }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                />
+              {/* Data + Ora */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label
+                    htmlFor="event_date"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
+                    Data *
+                  </label>
+                  <input
+                    id="event_date"
+                    type="date"
+                    value={form.event_date}
+                    onChange={(e) => handleChange("event_date", e.target.value)}
+                    required
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="event_time"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
+                    Ora *
+                  </label>
+                  <input
+                    id="event_time"
+                    type="time"
+                    value={form.event_time}
+                    onChange={(e) => handleChange("event_time", e.target.value)}
+                    required
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  />
+                </div>
               </div>
 
+              {/* Locatie */}
               <div>
                 <label
                   htmlFor="location"
                   className="mb-2 block text-sm font-medium text-gray-700"
                 >
-                  Locatie
+                  Locație *
                 </label>
                 <input
                   id="location"
                   type="text"
-                  value={formData.location}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      location: e.target.value,
-                    }))
-                  }
+                  value={form.location}
+                  onChange={(e) => handleChange("location", e.target.value)}
+                  placeholder="Ex: Aula Magna, Cluj-Napoca"
+                  required
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
               </div>
 
+              {/* Categorie + Capacitate */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label
+                    htmlFor="category"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
+                    Categorie
+                  </label>
+                  <select
+                    id="category"
+                    value={form.category}
+                    onChange={(e) => handleChange("category", e.target.value)}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  >
+                    <option value="">-- Alege --</option>
+                    <option value="Workshop">Workshop</option>
+                    <option value="Seminar">Seminar</option>
+                    <option value="Party">Party</option>
+                    <option value="Conferinta">Conferință</option>
+                    <option value="Hackathon">Hackathon</option>
+                  </select>
+                </div>
+                <div>
+                  <label
+                    htmlFor="max_capacity"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
+                    Capacitate maximă *
+                  </label>
+                  <input
+                    id="max_capacity"
+                    type="number"
+                    min="1"
+                    value={form.max_capacity}
+                    onChange={(e) =>
+                      handleChange("max_capacity", e.target.value)
+                    }
+                    placeholder="Ex: 50"
+                    required
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  />
+                </div>
+              </div>
+
+              {/* URL Imagine */}
+              <div>
+                <label
+                  htmlFor="image_url"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  URL Imagine (opțional)
+                </label>
+                <input
+                  id="image_url"
+                  type="url"
+                  value={form.image_url}
+                  onChange={(e) => handleChange("image_url", e.target.value)}
+                  placeholder="https://..."
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                />
+              </div>
+
+              {/* Descriere */}
               <div>
                 <label
                   htmlFor="description"
                   className="mb-2 block text-sm font-medium text-gray-700"
                 >
-                  Descriere
+                  Descriere *
                 </label>
                 <textarea
                   id="description"
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      description: e.target.value,
-                    }))
-                  }
-                  rows={5}
+                  value={form.description}
+                  onChange={(e) => handleChange("description", e.target.value)}
+                  rows={4}
+                  placeholder="Descrie evenimentul, ce vor învăța participanții, ce să aducă..."
+                  required
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
               </div>
@@ -250,22 +295,13 @@ export default function EventEditorPage() {
                 </p>
               )}
 
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="inline-flex rounded-md bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
-                >
-                  {isSaving ? "Se salveaza..." : "Salveaza"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  className="inline-flex rounded-md border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-                >
-                  Anuleaza
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={isSaving || !isFormValid}
+                className="w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+              >
+                {isSaving ? "Se publică..." : "Publică Evenimentul"}
+              </button>
             </form>
           )}
         </div>
